@@ -43,6 +43,11 @@ export class WalletService {
   }
 
   transfer(fromWalletId: string, toWalletId: string, amount: number): void {
+
+  if (typeof amount !== 'number' || amount <= 0) {
+    throw new BadRequestException('Transfer amount must be a positive number');
+  }
+
   if (fromWalletId === toWalletId) {
     throw new BadRequestException('Cannot transfer to the same wallet');
   }
