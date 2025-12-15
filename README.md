@@ -197,5 +197,21 @@ GET /wallets
 
 ---
 
+### Postman Collection
+
+A Postman collection is provided for testing all wallet endpoints.
+
+**Steps to use:**
+1. Download and open Postman.
+2. Import the collection JSON file `Novacrust Wallet.postman_collection.json`.
+3. Update the `:id` path variables with wallet IDs returned from **Create Wallets**.
+4. Execute the requests in order:
+   - Create Wallets
+   - Fund Wallet
+   - Transfer fund
+   - Get Wallet Details
+   - Get Wallets
+
+
 
 
