@@ -1,13 +1,15 @@
-import { IsNumber, IsPositive, IsString } from 'class-validator';
+import { IsNumber, IsPositive, IsString, IsNotEmpty } from 'class-validator';
 
 export class TransferDto {
-  @IsString()
+  @IsString({ message: 'fromWalletId must be a string' })
+  @IsNotEmpty({ message: 'fromWalletId cannot be empty' })
   fromWalletId: string;
 
-  @IsString()
+  @IsString({ message: 'toWalletId must be a string' })
+  @IsNotEmpty({ message: 'toWalletId cannot be empty' })
   toWalletId: string;
 
-  @IsNumber()
-  @IsPositive()
+  @IsNumber({}, { message: 'Amount must be a number' })
+  @IsPositive({ message: 'Amount must be greater than zero' })
   amount: number;
 }

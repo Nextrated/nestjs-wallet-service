@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+model Wallet {
+  id           String        @id @default(uuid())
+  currency     String
+  balance      Float         @default(0)
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+}
+
+enum TransactionType {
+  FUND
+  TRANSFER_IN
+  TRANSFER_OUT
+  ONE_TIME
+  SUBSCRIPTION_FIRST_CHARGE
+}
+
+model Transaction {
+  id        String    @id @default(uuid())
+  walletId  String
+  type      TransactionType
+  amount    Float
+  reference String    @unique @default(uuid())  // auto-generate a unique ref if not provided
+  email     String?
+  createdAt DateTime  @default(now())
+
+  wallet    Wallet    @relation(fields: [walletId], references: [id])
+}
+
+
+model Coupon {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  type        CouponType
+  value       Float
+  isActive    Boolean  @default(true)
+  maxUsage    Int
+  usedCount   Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+}
+
+model Plan {
+  id       String   @id @default(uuid())
+  name     String
+  interval String
+  amount   Int
+  planCode String   @unique
+  createdAt DateTime @default(now())
+}
+
