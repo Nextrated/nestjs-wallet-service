@@ -1,65 +1,122 @@
-# NestJS Wallet Service
+# NestJS Wallet & Payments Service
 
-A simple wallet service built with NestJS and TypeScript.  
-Allows creating wallets, funding them, transferring funds, and fetching wallet details with transaction history.  
-Uses **in-memory storage**.
-
----
-
-## Tech Stack
-
-- NestJS
-- TypeScript
-- In-memory storage (array)
-- UUID for wallet/transaction IDs
+A production-ready **wallet and payments service** built with **NestJS**, **TypeScript**, **PostgreSQL**, and **Prisma**.
+Supports wallet management, Paystack-powered funding, transfers, coupons, and subscription-based payments with webhook verification.
 
 ---
 
-## ⚡ Features
+## 🧱 Tech Stack
 
-- **Create Wallet** (`POST /wallets`)
-- **Fund Wallet** (`POST /wallets/:id/fund`)
-- **Transfer Between Wallets** (`POST /wallets/transfer`)
-- **Fetch Wallet Details** (`GET /wallets/:id`)
-- **List all wallets** (`GET /wallets`)
+* **NestJS**
+* **TypeScript**
+* **PostgreSQL**
+* **Prisma ORM**
+* **Paystack API** (Payments & Subscriptions)
+* REST API Architecture
 
 ---
 
-## Getting Started
+## ⚡ Core Features
 
-### 1. Install dependencies
+### Wallets
+
+* Create wallets
+* Fetch wallet balance and transaction history
+* Transfer funds between wallets (atomic transactions)
+
+### Payments (Paystack)
+
+* Initialize wallet funding via Paystack
+* Secure webhook-based confirmation
+* Idempotent transaction processing
+* Email-based customer tracking
+
+### Transactions
+
+* FUND
+* TRANSFER_IN / TRANSFER_OUT
+* ONE_TIME payments
+* SUBSCRIPTION_FIRST_CHARGE
+
+### Coupons & Subscriptions
+
+* Coupon validation and usage tracking
+* `FIRSTMONTHFREE` coupon (one-time per email + wallet)
+* Subscription activation after first successful charge
+* Activation fee enforcement
+* Email-based abuse prevention
+
+---
+
+## 📦 Database Models (Simplified)
+
+* **Wallet**
+* **Transaction**
+* **Coupon**
+* **Plan (Paystack-backed)**
+
+All financial writes are **ACID-safe using Prisma transactions**.
+
+---
+
+## 🚀 Getting Started
+
+### 1️⃣ Install dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Start the server
+---
 
-**Development mode (hot reload):**
+### 2️⃣ Configure Environment Variables
+
+Create a `.env` file:
+
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/wallet_db"
+
+PAYSTACK_SECRET_KEY=sk_test_xxx
+```
+
+---
+
+### 3️⃣ Setup Database
+
+```bash
+npx prisma generate
+npx prisma migrate dev
+```
+
+---
+
+### 4️⃣ Start the Server
+
+**Development (hot reload):**
 
 ```bash
 npm run start:dev
 ```
 
-**Production mode (single process, persistent in-memory during session):**
+**Production:**
 
 ```bash
 npm run start
 ```
 
-> ⚠️ In-memory storage will reset on server restart or when code changes trigger hot reload.
+---
+
+## 🔌 API Endpoints
 
 ---
 
-### 3. API Endpoints
-
-#### Create Wallet
+### Create Wallet
 
 ```http
 POST /wallets
 ```
 
-**Response:**
+**Response**
 
 ```json
 {
@@ -71,30 +128,52 @@ POST /wallets
 
 ---
 
-#### Fund Wallet
+### Fund Wallet (Paystack)
 
 ```http
 POST /wallets/:id/fund
 Content-Type: application/json
 
 {
+  "email": "user@email.com",
   "amount": 100
 }
 ```
 
-**Response:**
+**Response**
 
 ```json
 {
-  "id": "wallet-uuid",
-  "currency": "USD",
-  "balance": 100
+  "authorizationUrl": "https://checkout.paystack.com/...",
+  "reference": "paystack_ref",
+  "amount": 100
 }
 ```
 
+> ⚠️ Wallet balance is **NOT updated immediately**.
+> Balance is credited **only after Paystack webhook confirmation**.
+
 ---
 
-#### Transfer Between Wallets
+### Paystack Webhook (Internal)
+
+```http
+POST /webhook/paystack
+```
+
+Handles:
+
+* Charge success events
+* Wallet crediting
+* Transaction persistence
+* Coupon usage tracking
+* Subscription activation
+
+> Webhook processing is **idempotent** using transaction reference.
+
+---
+
+### Transfer Between Wallets
 
 ```http
 POST /wallets/transfer
@@ -107,7 +186,7 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
+**Response**
 
 ```json
 {
@@ -115,15 +194,19 @@ Content-Type: application/json
 }
 ```
 
+* Prevents self-transfer
+* Prevents overdraft
+* Executes atomically
+
 ---
 
-#### Fetch Wallet Details
+### Fetch Wallet Details
 
 ```http
 GET /wallets/:id
 ```
 
-**Response:**
+**Response**
 
 ```json
 {
@@ -133,14 +216,13 @@ GET /wallets/:id
   "transactions": [
     {
       "id": "tx-uuid",
-      "walletId": "wallet-uuid",
       "type": "FUND",
       "amount": 100,
+      "email": "user@email.com",
       "createdAt": "2025-12-15T22:10:00.000Z"
     },
     {
       "id": "tx-uuid",
-      "walletId": "wallet-uuid",
       "type": "TRANSFER_OUT",
       "amount": 50,
       "createdAt": "2025-12-15T22:15:00.000Z"
@@ -151,67 +233,69 @@ GET /wallets/:id
 
 ---
 
-#### List All Wallets (Debug / Optional)
+### List All Wallets (Admin / Debug)
 
 ```http
 GET /wallets
 ```
 
-**Response:**
+---
 
-```json
-[
-  {
-    "id": "wallet-1-id",
-    "currency": "USD",
-    "balance": 50
-  },
-  {
-    "id": "wallet-2-id",
-    "currency": "USD",
-    "balance": 150
-  }
-]
-```
+## 🎟️ Coupons & Subscriptions
+
+* Coupons validated before payment initialization
+* Coupon usage incremented **only after successful webhook**
+* `FIRSTMONTHFREE` rules:
+
+  * One-time per **wallet**
+  * One-time per **email**
+  * Requires activation fee
+  * Automatically schedules subscription start date
 
 ---
 
-### 4. Notes / Assumptions
+## 🔒 Key Design Decisions
 
-* Wallet IDs are UUIDs generated in memory.
-* Transactions are stored in memory.
-* Data will reset if the server restarts or code changes (hot reload).
-* Only positive amounts allowed for funding or transfers.
-* Transfers prevent negative balances.
-* No authentication implemented.
-* Idempotency not implemented.
+* **No optimistic wallet crediting**
+* **Webhook-first accounting**
+* **Email-based fraud prevention**
+* **Strict idempotency**
+* **Separation of concerns**
 
----
-
-### 5. Scaling Considerations
-
-* Replace in-memory storage with a database (Postgres, MongoDB, etc.) for production.
-* Use transaction logic to prevent race conditions.
-* Add authentication & authorization.
-* Add idempotency keys for repeated requests.
+  * Wallet logic
+  * Payment initialization
+  * Webhook settlement
 
 ---
 
-### Postman Collection
+## 📈 Scaling & Production Considerations
 
-A Postman collection is provided for testing all wallet endpoints.
+* Add Redis for webhook deduplication
+* Add background jobs (BullMQ) for retries
+* Introduce audit logs
+* Add authentication & RBAC
+* Implement refunds & chargebacks
+* Rate limit payment endpoints
 
-**Steps to use:**
-1. Download and open Postman.
-2. Import the collection JSON file `Novacrust Wallet.postman_collection.json`.
-3. Update the `:id` path variables with wallet IDs returned from **Create Wallets**.
-4. Execute the requests in order:
-   - Create Wallets
-   - Fund Wallet
-   - Transfer fund
-   - Get Wallet Details
-   - Get Wallets
+---
 
+## 🧠 Important Notes
 
+* Wallet balances reflect **settled funds only**
+* Paystack is the source of truth for payments
+* Prisma transactions prevent race conditions
+* Emails are mandatory for funding & subscriptions
+
+---
+
+## 🏁 Status
+
+✅ Database-backed
+✅ Payment-safe
+✅ Webhook-secure
+✅ Coupon-aware
+✅ Subscription-ready
+
+---
 
 
