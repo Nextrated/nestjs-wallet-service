@@ -5,7 +5,7 @@ Supports wallet management, Paystack-powered funding, transfers, coupons, and su
 
 ---
 
-## 🧱 Tech Stack
+##  Tech Stack
 
 * **NestJS**
 * **TypeScript**
@@ -40,11 +40,134 @@ Supports wallet management, Paystack-powered funding, transfers, coupons, and su
 
 ### Coupons & Subscriptions
 
-* Coupon validation and usage tracking
-* `FIRSTMONTHFREE` coupon (one-time per email + wallet)
-* Subscription activation after first successful charge
-* Activation fee enforcement
-* Email-based abuse prevention
+### Coupon System
+
+* Coupons must exist in the database **before** they can be applied
+* Coupons are validated **before payment initialization**
+* Coupon usage is incremented **only after successful Paystack webhook**
+* Coupon enforcement is **wallet-aware and email-aware**
+
+### Seeding Default Coupons
+
+This project includes a Prisma seed script for initializing coupons.
+
+```bash
+npx ts-node prisma/seed/coupons.ts
+```
+
+The seed script:
+
+* Inserts predefined coupons (e.g. `FIRSTMONTHFREE`)
+* Prevents duplicate coupon codes
+* Sets usage limits and activation rules
+
+Example seeded coupon:
+
+```ts
+{
+  code: 'FIRSTMONTHFREE',
+  type: 'PERCENTAGE',
+  value: 100,
+  maxUsage: 1,
+  isActive: true
+}
+```
+
+> ⚠️ If this script is not run, coupon validation will fail.
+
+---
+
+### Creating Custom Coupons
+
+Coupons can be added in two ways:
+
+#### Option 1: Prisma Studio
+
+```bash
+npx prisma studio
+```
+
+#### Option 2: Programmatically
+
+```ts
+await prisma.coupon.create({
+  data: {
+    code: 'SUMMER10',
+    type: 'PERCENTAGE',
+    value: 10,
+    maxUsage: 100,
+    isActive: true,
+  },
+});
+```
+
+---
+
+### `FIRSTMONTHFREE` Rules
+
+The `FIRSTMONTHFREE` coupon is strictly enforced:
+
+* One-time per **wallet**
+* One-time per **email**
+* Requires an **activation fee**
+* Subscription is created **after webhook confirmation**
+* Subscription start date is automatically scheduled for the next billing cycle
+
+This prevents abuse even if:
+
+* A new wallet is created
+* The same email is reused
+* Requests are replayed
+
+---
+
+## Paystack Webhook Configuration (Required)
+
+Wallet funding and subscription activation **will not work** unless Paystack webhooks are configured.
+
+### Configure Webhook URL in Paystack Dashboard
+
+1. Log in to your **Paystack Dashboard**
+2. Navigate to **Settings → API Keys & Webhooks**
+3. Set the Webhook URL to:
+
+```text
+POST https://your-domain.com/webhook
+```
+
+#### Local Testing Example (ngrok)
+
+```text
+POST https://abcd-1234.ngrok.io/webhook
+```
+
+---
+
+### Webhook Responsibilities
+
+The webhook handler is responsible for:
+
+* Verifying transaction authenticity
+* Enforcing idempotency using transaction reference
+* Crediting wallet balances
+* Persisting transactions
+* Incrementing coupon usage
+* Activating subscriptions
+
+> ⚠️ Wallet balances are updated **only via webhook**, never from the client response.
+
+---
+
+### Webhook Security
+
+* Paystack signatures are verified using:
+
+```env
+PAYSTACK_SECRET_KEY
+```
+
+* Invalid signatures are rejected
+* Duplicate references are ignored
 
 ---
 
@@ -106,7 +229,7 @@ npm run start
 
 ---
 
-## 🔌 API Endpoints
+## API Endpoints
 
 ---
 
@@ -158,7 +281,7 @@ Content-Type: application/json
 ### Paystack Webhook (Internal)
 
 ```http
-POST /webhook/paystack
+POST /webhook
 ```
 
 Handles:
@@ -241,20 +364,7 @@ GET /wallets
 
 ---
 
-## 🎟️ Coupons & Subscriptions
-
-* Coupons validated before payment initialization
-* Coupon usage incremented **only after successful webhook**
-* `FIRSTMONTHFREE` rules:
-
-  * One-time per **wallet**
-  * One-time per **email**
-  * Requires activation fee
-  * Automatically schedules subscription start date
-
----
-
-## 🔒 Key Design Decisions
+##  Key Design Decisions
 
 * **No optimistic wallet crediting**
 * **Webhook-first accounting**
@@ -268,7 +378,7 @@ GET /wallets
 
 ---
 
-## 📈 Scaling & Production Considerations
+## Scaling & Production Considerations
 
 * Add Redis for webhook deduplication
 * Add background jobs (BullMQ) for retries
@@ -279,7 +389,7 @@ GET /wallets
 
 ---
 
-## 🧠 Important Notes
+##  Important Notes
 
 * Wallet balances reflect **settled funds only**
 * Paystack is the source of truth for payments
@@ -288,7 +398,7 @@ GET /wallets
 
 ---
 
-## 🏁 Status
+##  Status
 
 ✅ Database-backed
 ✅ Payment-safe
@@ -297,5 +407,6 @@ GET /wallets
 ✅ Subscription-ready
 
 ---
+
 
 
